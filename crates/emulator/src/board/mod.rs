@@ -1021,6 +1021,10 @@ impl Board {
     }
     /// Observation only: every released processor is waiting for an input.
     /// Device deadlines may still wake a processor in a later run.
+    /// The earliest tick a device has scheduled work for.
+    pub fn next_device_deadline(&self) -> Option<u64> {
+        self.state.borrow().deadlines.iter().flatten().copied().min()
+    }
     pub fn quiescent(&self) -> bool {
         let state = self.state.borrow();
         state
@@ -3959,6 +3963,10 @@ impl Host for Services<'_> {
         Ok(())
     }
     fn output_status(&mut self, output: usize, state: Value) -> Result<(), String> {
+        // An output that stops scanning no longer shows its last frame.
+        if state.get("active") == Some(&Value::Bool(false)) {
+            self.frames.remove(&output);
+        }
         self.outputs.insert(output, state);
         Ok(())
     }
