@@ -1,6 +1,7 @@
 //! The SD card medium leaves a board and enters the next one. Definition admission only:
 //! these tests execute no guest instructions.
-use fujimod_emulator_xp4_board::{Definition, Session};
+mod support;
+use fujimod_emulator_xp4_board::Definition;
 use serde_json::{Value, json};
 
 fn definition(sectors: u32) -> Value {
@@ -12,9 +13,9 @@ fn definition(sectors: u32) -> Value {
                 "sectors_per_cluster":64,"label":"CAMERA"}}]})
 }
 fn open(v: Value, files: Vec<(String, Vec<u8>)>, media: Vec<(usize, fujimod_emulator_devices::parts::sd_card::Card)>)
-    -> Result<Session, String>
+    -> Result<support::Board, String>
 {
-    Session::new_with_media(serde_json::from_value::<Definition>(v).unwrap(), None, files, media)
+    support::open_with(serde_json::from_value::<Definition>(v).unwrap(), None, files, media)
 }
 
 #[test]
