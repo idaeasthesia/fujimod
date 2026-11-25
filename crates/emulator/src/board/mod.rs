@@ -29,6 +29,8 @@ mod execute_in_place;
 mod execute_in_place_tests;
 pub mod factory;
 pub mod harness;
+#[cfg(test)]
+mod harness_device_policy_tests;
 mod host;
 mod interactive;
 pub mod keyframe;
@@ -344,6 +346,8 @@ struct State {
     active_slice: Option<schedule::Slice>,
     parallel: Option<interactive::Epoch>,
     decoders: decoder::Decoders,
+    /// The isolated caller's device policy, while a harness session holds one.
+    device_guard: Option<harness::DeviceGuard>,
     memory_access: bool,
     mprofile_loops: loops::MProfileLoops,
     access_histogram: Option<access_histogram::SharedStatistics>,
@@ -757,6 +761,7 @@ impl Board {
             active_slice: None,
             parallel: None,
             decoders: decoder::Decoders::default(),
+            device_guard: None,
             memory_access: false,
             mprofile_loops: loops::MProfileLoops::new(n),
             access_histogram: register_access_histogram.clone(),
@@ -3111,6 +3116,7 @@ impl State {
             active_slice,
             memory_access,
             settled,
+            device_guard,
             ..
         } = self;
         settled.clear();
@@ -3139,6 +3145,7 @@ impl State {
             code_write_deferred,
             cpus,
             decoders,
+            device_guard,
             active_core: active_slice.map(|s| s.core),
             memory_access: *memory_access,
         };
@@ -3357,6 +3364,9 @@ impl State {
         let core = binding.core;
         if self.decoders.pending() {
             return Err("MMIO requires committed memory decoding".into());
+        }
+        if let Some(guard) = self.device_guard.as_mut() {
+            guard.mmio(address, size, value.is_some())?;
         }
         self.settled.clear();
         // Block execution: a device access is the last instruction of its
@@ -3743,6 +3753,7 @@ struct Services<'a> {
     code_run: &'a mut RunCode,
     code_write_deferred: &'a mut bool,
     decoders: &'a mut decoder::Decoders,
+    device_guard: &'a mut Option<harness::DeviceGuard>,
     active_core: Option<usize>,
     memory_access: bool,
 }
@@ -3884,11 +3895,17 @@ impl Host for Services<'_> {
         if self.decoders.pending() {
             return Err("DMA requires committed memory decoding".into());
         }
+        if let Some(guard) = self.device_guard.as_ref() {
+            guard.model_read(address, out.len() as u64)?;
+        }
         self.memory.read_dma(address, out)
     }
     fn ram_write(&mut self, address: u64, bytes: &[u8]) -> Result<(), String> {
         if self.decoders.pending() {
             return Err("DMA requires committed memory decoding".into());
+        }
+        if let Some(guard) = self.device_guard.as_mut() {
+            guard.model_write(address, bytes.len() as u64)?;
         }
         self.memory
             .watch_transfer(write_watch::WriteSource::Dma, address, bytes, self.timeline.now());
