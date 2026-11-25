@@ -31,6 +31,8 @@ pub mod factory;
 pub mod harness;
 #[cfg(test)]
 mod harness_device_policy_tests;
+#[cfg(test)]
+mod harness_store_tests;
 mod host;
 mod interactive;
 pub mod keyframe;
