@@ -129,6 +129,7 @@ impl Boot for CatalogBoot {
             capability_reply,
             sd_card_transfer_ticks: None,
             card_layout: None,
+            card_initialization_fault: None,
         };
         let mut session = boot::open(resolved, boot::StartupInputs::Exr2 { options, mode })?.session;
         #[cfg(not(target_arch = "wasm32"))]
